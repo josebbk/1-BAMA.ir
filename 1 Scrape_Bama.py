@@ -17,7 +17,7 @@ DD = Del()
 print('Please have patience...')
 print('This process will take some time depending on\nthe number of pages and connection speed...')
 
-db = mysql.connector.connect(user='root', password='josephisking',
+db = mysql.connector.connect(user='root', password='PASSWORD',
                             host='localhost')
 cursor = db.cursor()
 cursor.execute("DROP DATABASE IF EXISTS bama")
