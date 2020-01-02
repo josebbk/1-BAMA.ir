@@ -7,37 +7,38 @@ import requests
 import string
 import mysql.connector
 
-class Del:
-    def __init__(self, keep=string.digits):
-        self.comp = dict((ord(c),c) for c in keep)
-    def __getitem__(self, k):
-        return self.comp.get(k)
-DD = Del()
-
 print('Please have patience...')
 print('This process will take some time depending on\nthe number of pages and connection speed...')
 
-db = mysql.connector.connect(user='root', password='PASSWORD',
-                            host='localhost')
+db = mysql.connector.connect(user='root', password='PASSWORD', host='localhost')
 cursor = db.cursor()
-cursor.execute("DROP DATABASE IF EXISTS bama")
-cursor.execute("CREATE DATABASE bama CHARACTER SET utf8 COLLATE utf8_persian_ci")
-cursor.execute("use bama")
-cursor.execute("DROP TABLE IF EXISTS info")
-cursor.execute("CREATE TABLE info (ID INT PRIMARY KEY AUTO_INCREMENT, Model TINYTEXT, Brand TINYTEXT, Karkard INT, Year INT, Gheymat TINYTEXT) CHARACTER SET utf8 COLLATE utf8_persian_ci")
 
-model = list()
-brand = list()
-gheymat = list()
-karkard = list()
-year = list()
+
+class Del:
+    def __init__(self, keep=string.digits):
+        self.comp = dict((ord(c), c) for c in keep)
+
+    def __getitem__(self, k):
+        return self.comp.get(k)
+
+
+def initialize_db():
+    cursor.execute("DROP DATABASE IF EXISTS bama")
+    cursor.execute("CREATE DATABASE bama CHARACTER SET utf8 COLLATE utf8_persian_ci")
+    cursor.execute("use bama")
+    cursor.execute("DROP TABLE IF EXISTS info")
+    cursor.execute(
+        "CREATE TABLE info (ID INT PRIMARY KEY AUTO_INCREMENT, Model TINYTEXT, Brand TINYTEXT, Karkard INT, Year INT, Gheymat TINYTEXT) CHARACTER SET utf8 COLLATE utf8_persian_ci")
+
 
 def find_site(site):
-    del model[:]
-    del brand[:]
-    del gheymat[:]
-    del karkard[:]
-    del year[:]
+    model = list()
+    brand = list()
+    gheymat = list()
+    karkard = list()
+    year = list()
+    DD = Del()
+
     result = requests.get(site)
     soup = BeautifulSoup(result.text, 'html.parser')
     all_karkard = soup.find_all('p', attrs={'class': 'price hidden-xs'})
@@ -70,23 +71,31 @@ def find_site(site):
     for Model, Brand, Karkard, Year, Gheymat in zip(model, brand, karkard, year, gheymat):
         cursor.execute("INSERT INTO info (Model, Brand, Karkard, Year, Gheymat) VALUES (%s, %s, %s, %s, %s)", (
             Model, Brand, Karkard, Year, Gheymat
-            ))
+        ))
     db.commit()
 
-counter = 100
-count_sec = 0
-while counter != 0:
-    page = 'https://bama.ir/car/all-brands/all-models/all-trims?hasprice=true&page='
-    counter = str(counter)
-    page = page + counter
-    find_site(page)
-    counter = int(counter) - 1
-    count_sec += 1
-    print('Scraping Page %s' % count_sec)
 
-cursor.execute("DELETE FROM info WHERE Gheymat LIKE '-'")
-cursor.execute("DELETE c1 FROM info c1 INNER JOIN info c2 WHERE c1.id > c2.id AND c1.Model = c2.Model AND c1.Brand = c2.Brand AND c1.Karkard = c2.Karkard AND c1.Year = c2.Year AND c1.Gheymat = c2.Gheymat")
-db.commit()
-print('Finished')
-print('Thank you for your patience')
-db.close()
+def main():
+    initialize_db()
+    counter = 100
+    count_sec = 0
+    while counter != 0:
+        page = 'https://bama.ir/car/all-brands/all-models/all-trims?hasprice=true&page='
+        counter = str(counter)
+        page = page + counter
+        find_site(page)
+        counter = int(counter) - 1
+        count_sec += 1
+        print('Scraping Page %s' % count_sec)
+
+    cursor.execute("DELETE FROM info WHERE Gheymat LIKE '-'")
+    cursor.execute(
+        "DELETE c1 FROM info c1 INNER JOIN info c2 WHERE c1.id > c2.id AND c1.Model = c2.Model AND c1.Brand = c2.Brand AND c1.Karkard = c2.Karkard AND c1.Year = c2.Year AND c1.Gheymat = c2.Gheymat")
+    db.commit()
+    print('Finished')
+    print('Thank you for your patience')
+    db.close()
+
+
+if __name__ == '__main__':
+    main()
