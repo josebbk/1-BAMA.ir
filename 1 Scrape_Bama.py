@@ -1,12 +1,14 @@
 # to create database and scrape 100 page from bama.ir, only needs to run one time
 # Scraping time depends on how many pages you want to scrape
 
-from bs4 import BeautifulSoup
 import re
-import requests
 import string
-import mysql.connector
 
+import mysql.connector
+import requests
+from bs4 import BeautifulSoup
+
+URL_TEMPLATE = 'https://bama.ir/car/all-brands/all-models/all-trims?hasprice=true&page=%d'
 print('Please have patience...')
 print('This process will take some time depending on\nthe number of pages and connection speed...')
 
@@ -31,7 +33,8 @@ def initialize_db():
         "CREATE TABLE info (ID INT PRIMARY KEY AUTO_INCREMENT, Model TINYTEXT, Brand TINYTEXT, Karkard INT, Year INT, Gheymat TINYTEXT) CHARACTER SET utf8 COLLATE utf8_persian_ci")
 
 
-def find_site(site):
+def extract_data_from_html(html_content):
+    # This function will be cleaned up in the next commit!
     model = list()
     brand = list()
     gheymat = list()
@@ -39,8 +42,7 @@ def find_site(site):
     year = list()
     DD = Del()
 
-    result = requests.get(site)
-    soup = BeautifulSoup(result.text, 'html.parser')
+    soup = BeautifulSoup(html_content.text, 'html.parser')
     all_karkard = soup.find_all('p', attrs={'class': 'price hidden-xs'})
     for kar in all_karkard:
         kar = re.sub('\s+', ' ', kar.text).strip()
@@ -68,7 +70,13 @@ def find_site(site):
         if money == '':
             money = '-'
         gheymat.append(money)
-    for Model, Brand, Karkard, Year, Gheymat in zip(model, brand, karkard, year, gheymat):
+
+    return zip(model, brand, karkard, year, gheymat)
+
+
+def find_site(site):
+    result = requests.get(site)
+    for Model, Brand, Karkard, Year, Gheymat in extract_data_from_html(result):
         cursor.execute("INSERT INTO info (Model, Brand, Karkard, Year, Gheymat) VALUES (%s, %s, %s, %s, %s)", (
             Model, Brand, Karkard, Year, Gheymat
         ))
@@ -78,15 +86,11 @@ def find_site(site):
 def main():
     initialize_db()
     counter = 100
-    count_sec = 0
     while counter != 0:
-        page = 'https://bama.ir/car/all-brands/all-models/all-trims?hasprice=true&page='
-        counter = str(counter)
-        page = page + counter
+        page = URL_TEMPLATE % counter
         find_site(page)
-        counter = int(counter) - 1
-        count_sec += 1
-        print('Scraping Page %s' % count_sec)
+        counter -= 1
+        print('Scraping Page %s' % (100 - counter))
 
     cursor.execute("DELETE FROM info WHERE Gheymat LIKE '-'")
     cursor.execute(
