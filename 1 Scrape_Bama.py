@@ -1,7 +1,6 @@
 # to create database and scrape 100 page from bama.ir, only needs to run one time
 # Scraping time depends on how many pages you want to scrape
 
-import re
 import string
 
 import mysql.connector
@@ -16,14 +15,6 @@ db = mysql.connector.connect(user='root', password='PASSWORD', host='localhost')
 cursor = db.cursor()
 
 
-class Del:
-    def __init__(self, keep=string.digits):
-        self.comp = dict((ord(c), c) for c in keep)
-
-    def __getitem__(self, k):
-        return self.comp.get(k)
-
-
 def initialize_db():
     cursor.execute("DROP DATABASE IF EXISTS bama")
     cursor.execute("CREATE DATABASE bama CHARACTER SET utf8 COLLATE utf8_persian_ci")
@@ -33,45 +24,25 @@ def initialize_db():
         "CREATE TABLE info (ID INT PRIMARY KEY AUTO_INCREMENT, Model TINYTEXT, Brand TINYTEXT, Karkard INT, Year INT, Gheymat TINYTEXT) CHARACTER SET utf8 COLLATE utf8_persian_ci")
 
 
+def validate_number(bama_string: str):
+    a = "".join(i if i in string.digits else "" for i in bama_string)
+    if a:
+        return int(a)
+    else:
+        return None
+
+
 def extract_data_from_html(html_content):
-    # This function will be cleaned up in the next commit!
-    model = list()
-    brand = list()
-    gheymat = list()
-    karkard = list()
-    year = list()
-    DD = Del()
-
     soup = BeautifulSoup(html_content.text, 'html.parser')
-    all_karkard = soup.find_all('p', attrs={'class': 'price hidden-xs'})
-    for kar in all_karkard:
-        kar = re.sub('\s+', ' ', kar.text).strip()
-        kar = kar.translate(DD)
-        if kar == '':
-            kar = 0
-        karkard.append(int(kar))
-    all_cars = soup.find_all('h2', attrs={'class': 'persianOrder'})
-    for car in all_cars:
-        car = re.sub('\s+', ' ', car.text).strip()
-        car = car.split('،')
-        car_model = car[0].strip()
-        car_brand = car[1].strip()
-        model.append(car_model)
-        brand.append(car_brand)
-    all_year = soup.find_all('span', attrs={'class': 'year-label visible-xs'})
-    for years in all_year:
-        years = re.sub('\s+', ' ', years.text).strip()
-        years = years[:4]
-        year.append(int(years))
-    all_gheymat = soup.find_all('p', attrs={'class': 'cost'})
-    for money in all_gheymat:
-        money = re.sub('\s+', ' ', money.text).strip()
-        money = money.translate(DD)
-        if money == '':
-            money = '-'
-        gheymat.append(money)
-
-    return zip(model, brand, karkard, year, gheymat)
+    main_section = soup.find("div", {"class": "eventlist car-ad-list-new clearfix"})
+    for section in main_section.find_all("li"):
+        title = section.find_all('h2', attrs={'itemprop': 'name'})[-1].text
+        car_model = title.split("،")[0]
+        car_brand = title.split("،")[1]
+        karkard = validate_number(section.find('p', attrs={'class': 'price hidden-xs'}).text)
+        year = validate_number(section.find('span', attrs={'class': 'year-label visible-xs'}).text)
+        price = validate_number(section.find("span", {"itemprop": "cost"}).text)
+        yield car_model, car_brand, karkard, year, price
 
 
 def find_site(site):
